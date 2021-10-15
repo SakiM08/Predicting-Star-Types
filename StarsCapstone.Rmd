@@ -1,0 +1,343 @@
+---
+title: "StarsCapstone"
+author: "Saketha Male"
+date: "9/4/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Installing necessary packages
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = 
+"http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(dplyr)
+
+dl <- tempfile()
+
+download.file("https://www.kaggle.com/deepu1109/star-dataset/download", dl)
+
+stars <- read.csv("~/Downloads/6 class csv.csv")
+
+# In the case of failure of automatic download:
+# Got to "https://www.kaggle.com/deepu1109/star-dataset/download" (This should automatically download a zip file) (**You might need to create an account if you don't already have one**)
+# Then import that data by: going to RSTUDIO, clicking on file, importing dataset, clicking import From Text (baser), and searching for a 6 class csv file. Import that file.
+# Finally, store that code to an object called "stars" (From here on you can run the code manually starting from "names(stars)")
+
+names(stars) <- c("Temperature", "Luminosity", "Radius", "Magnitude", "Type", "Color", "Class")
+
+```
+
+# Introduction
+
+A star is a massive ball of plasma that emits light throughout the universe. There are billions upon billions of stars throughout our galaxy and exponentially more in the billions of galaxies in the universe. A star can be defined by many characteristics like Temperature, Radius, Luminosity, Magnitude, Spectral Class, Type, and Color.
+
+Using data science, we can better analyze information on stars and create algorithms to discern patters that can help us classify more stars in the future.
+
+
+# Methods/Exploratory Analysis
+
+In This report, we will begin exploring the stars data set provided by user deepu1109 on kaggle. This is the download link for the data set: https://www.kaggle.com/deepu1109/star-dataset/download.
+
+- Cleaning and Tidying Data
+
+This was a fairly simple process. The tidying of the data consisted mainly of importing the data using the read.csv function and then renaming the column names for conciseness.
+
+However this was a bit of a complex process since the zip and csv link weren't given directly in kaggle. A plan B was given in the case the code failed to execute because the download link was made inaccessible.
+
+- Inferencing and Modeling
+
+The dimensions and different aspects of the stars dataset are first introduced and made familiar through fragments of code.
+
+The data analysis was depicted and supported with use of graphs, plots, and other visual features. 
+
+- Exploratory Analysis
+
+Exploring the relationships between variables in the dataset through visuals such as graphs/plots helped outline the conclusions.
+
+- Accuracy and Predictions
+
+We made using a k-nearest neighbors algorithm. The first step to optimize this model was to use the "tune grid" function in order to get the highest accuracy from various k-values. 
+
+We also seperated the stars data set into a training and testing sets, which each contained different observations.
+ 
+
+# Overview of the Stars dataset
+
+The columns of this dataset include the following features of stars:
+
+- Absolute Temperature (Kelvin)
+- Relative Luminosity (L/Lo)
+- Relative Radius (R/Ro)
+- Absolute Magnitude (Megavolt)
+- Star Type:
+    - 0 = Brown Dwarf 
+    - 1 = Red Dwarf
+    - 2 = White Dwarf
+    - 3 = Main Sequence
+    - 4 = Super Giants
+    - 5 = Hyper Giants
+    
+- Star Color
+- Spectral Class (M, B, A, F, O, K, G)
+
+- Lo = 3.828 * 10^26 Watts (Average Luminosity Of Sun)
+- Ro = 6.9551 * 10^8 Meters (Average Radius Of Sun)
+
+```{r, include = FALSE}
+
+#Load necessary packages:
+
+library(ggplot2)
+library(dplyr)
+library(ggpmisc)
+library(tidyr)
+library(lattice)
+library(grid)
+library(lubridate)
+library(ggthemes)
+library(gridExtra)
+library(scales)
+
+```
+
+Dimensions and Overview of the Dataset
+
+```{r}
+# Number of Rows
+nrow(stars)
+
+# Number of Columns
+ncol(stars)
+
+head(stars)
+
+summary(stars)
+
+```
+
+# Data Exploration and Visualization 
+
+Now lets begin exploring relationships among variables in the dataset.
+
+## Temp vs. Radius
+
+```{r, echo = FALSE}
+
+stars %>% select(Temperature, Luminosity) %>% ggplot(aes(Temperature, Luminosity)) + geom_point(color = "black") + geom_smooth(method = "lm", formula = "y ~ x", se = FALSE, color = "coral4") + theme_light() + ggtitle("Temperature vs Luminosity") + xlab("Temperature (K)") + ylab("Radius (R/Ro)") + theme(plot.title = element_text(hjust = 0.5)) + stat_poly_eq(formula = "y ~ x", aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~~~~")), parse = TRUE, color = "palevioletred4") 
+
+```
+We see that there isnt a very good correlation, evidenced by the R^2 value. But maybe if we add a factor/variable like spectral class, there may be a relationship among the varaibles.
+
+## Temp vs. Radius (Spectral Class)
+
+```{r, echo = FALSE}
+
+stars %>% ggplot(aes(x = Temperature, y = Radius, col = Class)) + geom_point() + theme_economist_white() + ggtitle("Temperature vs. Radius (Ft. Spectral Class)") + guides(color = guide_legend(title = "Spectral Class")) + xlab("Temperature (K)") + ylab("Radius (R/Ro)") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Although the stars in spectral classes O and B demonstrate fluctuating temperatures and values, many correlations are demonstrated in this plot:
+
+- Stars in spectral class M tend to show the lowest temperatures. 
+- Stars in spectral class K tend to show the 2nd lowest temperatures.
+- Stars in spectral classes G, F, and A tend to show temperatures between approximately 5000 to 15000 Kelvin. 
+- We see that stars in spectral class O don't have a very strong correlation with temperature as the values vary strongly. However, regarding radius, stars of class O tend to have very low radii.
+- Overall, stars in spectral classes F and A have the lowest radii.
+ 
+To demonstrate this more accurately and clearly, we will start by making boxplots for each class in relation to its temperature, radius, magnitude, etc.
+
+
+## Spectral Class & Temperature (Box Plot)
+
+```{r, echo = FALSE}
+
+stars %>% group_by(Class) %>% ggplot(aes(x = reorder(Class, Temperature), y = Temperature, fill = Class)) + geom_boxplot() + theme_linedraw() + ggtitle("Spectral Class & Temperature") + xlab("Spectral Class") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+ 
+We see that though stars in spectral class O have a higher mean, they also have a higher range, meaning more variability. This also applies to stars in spectral class B.
+
+Stars in spectral classes M, K, and A have lower variability. Spectral Class M has the lowest median.
+
+Note: (Plotting Spectral Class vs. Radius and Spectral Class vs Luminosity didn't have good correlations and weren't good predictors.)
+
+
+## Spectral Class & Magnitude
+
+```{r, echo = FALSE}
+
+stars %>% group_by(Class) %>% ggplot(aes(x = reorder(Class, Magnitude), y = Magnitude, fill = Class)) + geom_boxplot() + theme_linedraw() + ggtitle("Spectral Class & Magnitude") + xlab("Spectral Class") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We see that there is a lot of variability within a stars spectral class when measured for magnitude.
+
+# Temperature, Luminosity, Radius, and Magnitude Summary for each Spectral Class
+
+***Spectral Class A***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "A") %>% select(Temperature, Luminosity, Radius, Magnitude) %>% summary()
+
+```
+
+***Spectral Class B***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "B") %>% select(Temperature, Luminosity, Radius, Magnitude) %>% summary()
+
+```
+
+***Spectral Class F***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "F") %>% select(Temperature, Luminosity, Radius, Magnitude) %>% summary()
+
+```
+
+***Spectral Class G***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "G") %>% select("Temperature", "Luminosity", "Radius", "Magnitude") %>% summary()
+
+```
+
+***Spectral Class K***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "K") %>% select("Temperature", "Luminosity", "Radius", "Magnitude") %>% summary()
+
+```
+
+***Spectral Class M***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "M") %>% select("Temperature", "Luminosity", "Radius", "Magnitude") %>% summary()
+
+```
+
+
+***Spectral Class O***
+
+```{r, echo = FALSE}
+
+stars %>% filter(Class == "O") %>% select("Temperature", "Luminosity", "Radius", "Magnitude") %>% summary()
+
+```
+
+# More Visualization and Models
+
+## Temp vs Radius (Star Type)
+
+```{r, echo = FALSE}
+
+stars %>% ggplot(aes(Temperature, log2(Radius), color = as.factor(Type))) + geom_point() + theme_linedraw() + scale_color_discrete(breaks = c(0, 1, 2, 3, 4, 5), labels = c("Brown Dwarf", "Red Dwarf", "White Dwarf", "Main Sequence", "Super Giants", "Hyper Giants")) + xlab("Temperature (K)") + ylab("Radius (Log2)") + ggtitle("Temperature vs. Radius (ft. Star Type)") + theme(plot.title = element_text(hjust = 0.5)) + labs(color = "Star Type")
+
+```
+
+
+## Temp vs Luminosity (Star Type)
+
+```{r, echo = FALSE}
+
+stars %>% ggplot(aes(Temperature, log2(Luminosity), color = as.factor(Type))) + geom_point() + theme_linedraw() + scale_color_discrete(breaks = c(0, 1, 2, 3, 4, 5), labels = c("Brown Dwarf", "Red Dwarf", "White Dwarf", "Main Sequence", "Super Giants", "Hyper Giants")) + xlab("Temperature (K)") + ylab("Luminosity (Log2)") + ggtitle("Temperature vs. Luminosity (ft. Star Type)") + theme(plot.title = element_text(hjust = 0.5)) + labs(color = "Star Type")
+
+```
+
+
+## Temp vs Magnitude (Star Type)
+
+```{r, echo = FALSE}
+stars %>% ggplot(aes(Temperature, Magnitude, color = as.factor(Type))) + geom_point() + theme_linedraw() + scale_color_discrete(breaks = c(0, 1, 2, 3, 4, 5), labels = c("Brown Dwarf", "Red Dwarf", "White Dwarf", "Main Sequence", "Super Giants", "Hyper Giants")) + xlab("Temperature (K)") + ylab("Magnitude") + ggtitle("Temperature vs. Magnitude (ft. Star Type)") + theme(plot.title = element_text(hjust = 0.5)) + labs(color = "Star Type")
+
+```
+
+## Hertzsprung-Russell Diagram
+
+The purpose of making graphs and diagrams is to prove that stars follow a certain order and have certain relationships in the Celestial Space.
+
+Specifically, the Hertzsprung-Russell Diagram or HR-Diagram classifies stars by plotting its features based on that graph.
+
+```{r, echo = FALSE}
+
+stars %>% ggplot(aes(x = Temperature, y = Magnitude, color = as.factor(Class), shape = as.factor(Type))) + geom_point() + theme_minimal() + scale_y_reverse() + scale_x_reverse() + scale_shape_discrete(breaks = c(0, 1, 2, 3, 4, 5), labels = c("Brown Dwarf", "Red Dwarf", "White Dwarf", "Main Sequence", "Super Giants", "Hyper Giants")) + labs(color = "Star Class", shape = "Star Type") + xlab("Temperature (K)") + ylab("Magnitude (MV)") + ggtitle("Hertzsprung-Russell Diagram") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+This graph really enables us to see all the correlations and relationships among many different variables. 
+
+
+# Modeling and Predicting (Results)
+
+***KNN Plot***
+
+```{r}
+
+library(nnet)
+
+trainingSamp <- stars$Type %>% createDataPartition(p = 0.7, list = FALSE)
+
+trainData  <- stars[trainingSamp, ]
+testData <- stars[-trainingSamp, ]
+
+# K-nearest neighbor algorithm with a tunegrid parameter to optimize for k
+
+train_knn <- train(Type ~ ., method = "knn", data = trainData,tuneGrid = data.frame(k = seq(2, 30, 2)))
+
+# Visualize and save the optimal value for k
+
+knnplot <- ggplot(train_knn, highlight = TRUE)
+knnplot
+optim_knn <- train_knn$bestTune[1, 1]
+optim_knn
+
+
+```
+
+This graph displays the optimized value for k in relation to accuracy. The value k = 4 is thus chosen to calculate the results for this algorithm. It isn' a very good relation/predictor because of the low RMSE.
+
+***Predictions***
+
+Multinomial logistic regression model to predict star type:
+
+```{r}
+
+# Fitting model
+
+model <- nnet::multinom(Type ~ Temperature + Magnitude + Radius + Luminosity, data = trainData)
+
+summary(model)
+
+classPredict <- model %>% predict(testData)
+head(classPredict)
+
+# Accuracy of Model
+
+mean(classPredict == testData$Type)
+
+```
+
+
+This model has a very high accuracy and is thus a good predictor of star type.
+
+
+# Concluding Remarks
+
+In this report, we have profoundly explored the dataset and identified relationships among variables like temperature, radius, magnitude, luminosity, star type, spectral class, and etc. We used box plots, scatterplots, and even made a Hertzsprung-Russell Diagram using the data from the stars dataset.
+
+The aim of this report was to help distinguish algorithims and relationships amon star features. 
+
+
